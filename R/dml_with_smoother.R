@@ -12,7 +12,7 @@
 #' @param X Covariate matrix with N rows and p columns.
 #' @param Z Optional binary instrumental variable.
 #' @param estimators String (vector) indicating which estimators should be run.
-#' Current menu: c("PLR","PLR_IV","AIPW_ATE","Wald_AIPW","AIPW_ATT","AIPW_ATU")
+#' Current menu: c("PLR","PLR_IV","AIPW_ATE","Wald_AIPW","AIPW_ATT","AIPW_ATU","Wald_AIPW_LATT").
 #' @param smoother Indicate which smoother to be used for nuisance parameter estimation.
 #' Currently only available option \code{"honest_forest"} from the \pkg{grf} package.
 #' @param n_cf_folds Number of cross-fitting folds. Default is 5.
@@ -93,6 +93,7 @@ dml_with_smoother = function(Y,D,X,Z=NULL,
   if ("AIPW_ATT" %in% estimators) NuPa = c(NuPa, "Y.hat.d", "D.hat")
   if ("AIPW_ATU" %in% estimators) NuPa = c(NuPa, "Y.hat.d", "D.hat")
   if ("Wald_AIPW" %in% estimators) NuPa = c(NuPa, "Y.hat.z", "D.hat.z", "Z.hat")
+  if ("Wald_AIPW_LATT" %in% estimators) NuPa = c(NuPa, "Y.hat.z", "D.hat.z", "Z.hat")
   NuPa = unique(NuPa)
   
   # Estimate required nuisance parameters
@@ -337,11 +338,11 @@ get_outcome_weights.dml_with_smoother = function(object,...,
   ### Wald_AIPW_LATT ### 
   if (!is.character(object$results$Wald_AIPW_LATT)){
     Z.tilde = matrix(1,N,n_reps)
-    D.tilde = ((object$data$Z - lambdaz0) * (object$data$D - object$NuPa.hat$predictions$D.hat.z0))
     lambdaz0 = (1 - object$data$Z) * object$NuPa.hat$predictions$Z.hat / (1 - object$NuPa.hat$predictions$Z.hat)
+    D.tilde = (object$data$Z - lambdaz0) * (object$data$D - object$NuPa.hat$predictions$D.hat.z0)
     omega_waipw_latt = NULL
     for (r in 1:n_reps) {
-      T_mat = (diag(object$data$Z) - diag(lambdaz0[,r]) %*% (diag(N) - object$NuPa.hat$smoothers$S.z0[r,,]))
+      T_mat = (object$data$Z - lambdaz0[,r]) * (diag(N) - object$NuPa.hat$smoothers$S.z0[r,,])
       omega_waipw_latt = rbind(omega_waipw_latt, pive_weight_maker(Z.tilde[,r], D.tilde[,r], T_mat) )
     }
     if(isFALSE(all.equal(as.numeric(omega_waipw_latt %*% object$data$Y),
